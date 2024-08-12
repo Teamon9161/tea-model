@@ -1,0 +1,10 @@
+[package]
+name = "tea-model"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+polars = { version = "0.41" }
+tea-time = "0.2"
+anyhow = "1.0"
+chrono = "0.4"
