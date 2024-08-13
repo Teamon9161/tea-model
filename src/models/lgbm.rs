@@ -12,6 +12,7 @@ pub use lgbm::{
 };
 use polars::prelude::*;
 
+#[derive(Debug, Default, Clone)]
 pub struct LgbmOpt(pub Parameters);
 
 impl From<Device> for LgbmDeviceType {
@@ -134,6 +135,7 @@ impl LgbmOpt {
         self
     }
 }
+
 pub struct LgbmModel {
     pub model: Option<Booster>,
     pub opt: LgbmOpt,
@@ -165,27 +167,10 @@ impl LgbmModel {
     }
 }
 
-// fn dataframe_to_mat(df: &DataFrame, features: &[&str]) -> Result<MatBuf<f64, L>> {
-//     let vec_x = features
-//         .iter()
-//         .map(|s| df[*s].f64_array().unwrap())
-//         .collect::<Vec<_>>();
-//     let x_view: Vec<_> = vec_x.iter().map(|a| a.view()).collect();
-//     let x = ndarray::stack(ndarray::Axis(1), &x_view)?;
-//     let layout = if x.is_standard_layout() {
-//         MatLayouts::RowMajor
-//     } else {
-//         MatLayouts::ColMajor
-//     };
-//     let nrow = x.shape()[0];
-//     let ncol = x.shape()[1];
-//     Ok(MatBuf::from_vec(x.into_raw_vec(), nrow, ncol, layout))
-// }
-
 impl Model for LgbmModel {
     #[inline]
     fn name(&self) -> &str {
-        "Lgbm"
+        "lgbm"
     }
 
     #[inline]
@@ -203,7 +188,6 @@ impl Model for LgbmModel {
         } else {
             MatLayouts::ColMajor
         };
-        dbg!("train layout: {:?}", layout);
         let nrow = x.shape()[0];
         let ncol = x.shape()[1];
         let mat = MatBuf::from_vec(x.into_raw_vec(), nrow, ncol, layout);
@@ -226,7 +210,6 @@ impl Model for LgbmModel {
         } else {
             MatLayouts::ColMajor
         };
-        dbg!("predict layout: {:?}", layout);
         let nrow = x.shape()[0];
         let ncol = x.shape()[1];
         let mat = MatBuf::from_vec(x.into_raw_vec(), nrow, ncol, layout);
