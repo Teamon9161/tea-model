@@ -212,16 +212,20 @@ pub trait Model {
         }
     }
 
+    #[inline]
+    fn get_features<'a>(df: &'a DataFrame, y: &str) -> Vec<&'a str> {
+        df.get_column_names()
+            .into_iter()
+            .filter(|c| *c != y)
+            .collect()
+    }
+
     fn rolling_predict(&mut self, df: &DataFrame, opt: RollingPredictOpt) -> Result<Series> {
         let y = opt.y;
         let window = TimeDelta::parse(opt.window)?;
         let adjust = TimeDelta::parse(opt.adjust)?;
         let min_window = opt.min_window.map(|s| s.parse().unwrap()).unwrap_or(window);
-        let features = df
-            .get_column_names()
-            .into_iter()
-            .filter(|c| *c != y)
-            .collect::<Vec<_>>();
+        let features = Self::get_features(df, y);
         if df.is_empty() {
             return Ok(Series::new_empty("", &DataType::Float64));
         }
@@ -307,29 +311,12 @@ pub trait Model {
                     .try_extract::<i64>()?
                     .into();
                 println!(
-                    "train_time: {} -> {}, last_train_time: {:?}, last_predict_time: {:?}",
+                    "train_time: {} -> {}, last_train_time: {:?}, predict_until: {:?}",
                     start_time.strftime(Some(opt.time_fmt)),
                     current_time.strftime(Some(opt.time_fmt)),
                     last_train_time.strftime(Some(opt.time_fmt)),
                     predict_time.strftime(Some(opt.time_fmt)),
                 );
-                let first_predict_time: DateTime = df_to_predict[opt.time]
-                    .get(0)
-                    .unwrap()
-                    .cast(&DataType::Datetime(TimeUnit::Nanoseconds, None))
-                    .try_extract::<i64>()?
-                    .into();
-                let last_predict_time: DateTime = df_to_predict[opt.time]
-                    .get(df_to_predict.height() - 1)
-                    .unwrap()
-                    .cast(&DataType::Datetime(TimeUnit::Nanoseconds, None))
-                    .try_extract::<i64>()?
-                    .into();
-                println!(
-                    "predict_df: {} -> {}",
-                    first_predict_time.strftime(Some(opt.time_fmt)),
-                    last_predict_time.strftime(Some(opt.time_fmt))
-                )
             }
             let predict = self.predict(&df_to_predict)?;
             assert_eq!(predict_idx - end_idx, predict.len());

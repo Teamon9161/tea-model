@@ -3,8 +3,24 @@ name = "tea-model"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+
+blas = ["linfa/intel-mkl-static"]
+# linear model
+linear = ["linfa", "linfa-linear"]
+linear-blas = ["blas", "linear", "linfa-linear/blas"]
+
+# lightgbm
+lgbm = ["dep:lgbm"]
+
+
 [dependencies]
 polars = { version = "0.41" }
+ndarray = { version = "0.15" }
 tea-time = "0.2"
 anyhow = "1.0"
 chrono = "0.4"
+linfa = { version = "0.7", optional = true }
+linfa-linear = { version = "0.7", optional = true }
+lgbm = { version = "0.0", optional = true }

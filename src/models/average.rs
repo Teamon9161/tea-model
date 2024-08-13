@@ -5,13 +5,6 @@ use polars::prelude::*;
 
 pub struct AverageModel();
 
-// impl AverageModel {
-//     #[inline]
-//     pub fn new() -> Self {
-//         Self {}
-//     }
-// }
-
 impl Model for AverageModel {
     #[inline]
     fn name(&self) -> &str {
@@ -25,7 +18,9 @@ impl Model for AverageModel {
 
     #[inline]
     fn predict(&self, df: &DataFrame) -> Result<Series> {
-        let out = df.mean_horizontal(NullStrategy::Ignore)?;
+        let out = df
+            .mean_horizontal(NullStrategy::Ignore)?
+            .map(|s| s.with_name(self.name()));
         out.ok_or_else(|| anyhow::Error::msg("Dataframe should have at least one feature."))
     }
 }
