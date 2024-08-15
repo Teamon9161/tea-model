@@ -18,7 +18,7 @@ lgbm = ["dep:lgbm"]
 [dependencies]
 polars = { version = "0.41" }
 ndarray = { version = "0.15" }
-tea-time = "0.2"
+tea-time = "0.3"
 anyhow = "1.0"
 chrono = "0.4"
 linfa = { version = "0.7", optional = true }
