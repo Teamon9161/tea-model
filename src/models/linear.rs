@@ -103,6 +103,6 @@ impl Model for LinearModel {
         let x_view: Vec<_> = vec_x.iter().map(|a| a.view()).collect();
         let x = ndarray::stack(ndarray::Axis(1), &x_view)?;
         let predict = self.as_fitted().predict(&x);
-        Ok(Float64Chunked::from_vec(self.name(), predict.into_raw_vec()).into_series())
+        Ok(Float64Chunked::from_vec(self.name().into(), predict.into_raw_vec()).into_series())
     }
 }

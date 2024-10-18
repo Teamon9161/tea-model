@@ -20,7 +20,7 @@ impl Model for AverageModel {
     fn predict(&self, df: &DataFrame) -> Result<Series> {
         let out = df
             .mean_horizontal(NullStrategy::Ignore)?
-            .map(|s| s.with_name(self.name()));
+            .map(|s| s.with_name(self.name().into()));
         out.ok_or_else(|| anyhow::Error::msg("Dataframe should have at least one feature."))
     }
 }

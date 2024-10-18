@@ -218,7 +218,11 @@ impl Model for LgbmModel {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Model is not fitted."))?
             .predict_for_mat(mat, PredictType::Normal, 0, None, &Parameters::new())?;
-        let ca: Float64Chunked = res.values().iter().cloned().collect_ca_trusted(self.name());
+        let ca: Float64Chunked = res
+            .values()
+            .iter()
+            .cloned()
+            .collect_ca_trusted(self.name().into());
         Ok(ca.into_series())
     }
 }

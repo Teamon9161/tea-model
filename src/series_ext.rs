@@ -45,7 +45,7 @@ impl SeriesExt for Series {
         let s = self.cast_f32()?;
         Ok(s.f32()?
             .iter()
-            .map(|v| if v.is_none() { f32::NAN } else { v.unwrap() })
+            .map(|v| if let Some(v) = v { v } else { f32::NAN })
             .collect::<Array1<f32>>())
     }
 
@@ -54,7 +54,7 @@ impl SeriesExt for Series {
         let s = self.cast_f64()?;
         Ok(s.f64()?
             .iter()
-            .map(|v| if v.is_none() { f64::NAN } else { v.unwrap() })
+            .map(|v| if let Some(v) = v { v } else { f64::NAN })
             .collect::<Array1<f64>>())
     }
 }

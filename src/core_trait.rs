@@ -46,14 +46,19 @@ pub struct RollingPredictOpt<'a> {
     pub adjust: &'a str, // window to adjust model
     pub y: &'a str,
     // TODO: use a fixed cut off period may not be a good idea, as it does not consider the holidays
-    pub cut_off: StrOrUsize<'a>, // cut off time
+    pub cut_off: StrOrUsize<'a>,   // cut off time
+    pub cut_off_unique_time: bool, // Whether to unique the time series before applying cut_off
+    // True: Useful for cross-sectional predictions with multiple assets
+    // False: Useful for single-asset predictions or when using tick data
+    // When true, ensures each asset loses n periods in cut_off
+    // When false, allows cutting off n ticks within the same trading day
     pub time: &'a str,
     pub min_window: Option<&'a str>,
     pub fit_train: bool,
     pub expanding: bool,
     pub verbose: bool,
     pub time_fmt: &'a str,
-    pub useful: &'a str, // boolean column indicating whether the row is useful
+    // pub useful: &'a str, // boolean column indicating whether the row is useful
 }
 
 impl Default for RollingPredictOpt<'_> {
@@ -63,13 +68,14 @@ impl Default for RollingPredictOpt<'_> {
             adjust: "6mo",
             y: "y",
             cut_off: "0ns".into(),
+            cut_off_unique_time: true,
             time: "trading_date",
             min_window: None,
             fit_train: true,
             expanding: false,
             verbose: true,
             time_fmt: "%Y-%m-%d %H:%M:%S",
-            useful: "useful",
+            // useful: "useful",
         }
     }
 }
@@ -86,7 +92,7 @@ fn find_idx<U: TimeUnitTrait>(
         cut_off_end > start,
         "cut off end time should be greater than start time"
     );
-    let time_series = if let Some(begin_at) = begin_at {
+    let mut time_series = if let Some(begin_at) = begin_at {
         ensure!(
             begin_at <= time_series.len(),
             "begin_at should be less than length of time series"
@@ -100,6 +106,9 @@ fn find_idx<U: TimeUnitTrait>(
     let mut end_idx = None;
     let mut cut_off_end_idx = None;
     let mut predict_end_idx = None;
+    if matches!(time_series.dtype(), DataType::Date) {
+        time_series = time_series.cast(&DataType::Datetime(TimeUnit::Nanoseconds, None))?;
+    }
     // TODO: this should be faster if we judge whether cut_off_end is equal to end and
     // implement the loop separately for special case
     match time_series.dtype() {
@@ -214,9 +223,16 @@ pub trait Model {
 
     #[inline]
     fn get_features<'a>(df: &'a DataFrame, y: &str) -> Vec<&'a str> {
+        let un_facs = [y, "useful"];
         df.get_column_names()
             .into_iter()
-            .filter(|c| *c != y)
+            .filter_map(|c| {
+                if !un_facs.contains(&c.as_str()) {
+                    Some(c.as_str())
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 
@@ -227,38 +243,29 @@ pub trait Model {
         let min_window = opt.min_window.map(|s| s.parse().unwrap()).unwrap_or(window);
         let features = Self::get_features(df, y);
         if df.is_empty() {
-            return Ok(Series::new_empty("", &DataType::Float64));
+            return Ok(Series::new_empty("".into(), &DataType::Float64));
         }
-        let mut start_time: DateTime = df[opt.time]
-            .get(0)
-            .unwrap()
-            .cast(&DataType::Datetime(TimeUnit::Nanoseconds, None))
-            .try_extract::<i64>()?
-            .into();
+        let mut start_time: DateTime = df[opt.time].get(0).unwrap().into();
         let mut current_time = start_time + min_window;
         let mut init_flag = true;
-        let end_time: DateTime = df[opt.time]
-            .get(df.height() - 1)
-            .unwrap()
-            .cast(&DataType::Datetime(TimeUnit::Nanoseconds, None))
-            .try_extract::<i64>()?
-            .into();
+        let end_time: DateTime = df[opt.time].get(df.height() - 1).unwrap().into();
         let mut out = vec![f64::NAN; df.height()];
         if current_time > end_time {
             eprintln!("The length of the data is less than the minimum window size");
         }
 
         let unique_time_series = if opt.cut_off.is_usize() {
-            Some(
-                df[opt.time]
-                    .unique()?
-                    .cast(&DataType::Datetime(TimeUnit::Nanoseconds, None))?,
-            )
+            let se = if opt.cut_off_unique_time {
+                df[opt.time].unique()?
+            } else {
+                df[opt.time].clone()
+            };
+            Some(se.cast(&DataType::Datetime(TimeUnit::Nanoseconds, None))?)
         } else {
             None
         };
         let mut last_start_idx = 0;
-        while current_time <= end_time {
+        while current_time < end_time {
             let current_dt_for_train = match opt.cut_off {
                 StrOrUsize::Str(cut_off) => {
                     if cut_off != "0ns" {
@@ -268,8 +275,12 @@ pub trait Model {
                     }
                 }
                 StrOrUsize::Usize(cut_off) => {
-                    let se = unique_time_series.as_ref().unwrap().datetime()?;
+                    let se = unique_time_series.as_ref().unwrap().datetime().unwrap();
                     let ca = se.filter(&se.lt_eq(current_time.into_i64()))?;
+                    ensure!(
+                        ca.len() >= cut_off + 1,
+                        "cut off num should be less than the length of the time series"
+                    );
                     let time = ca.get(ca.len() - cut_off - 1);
                     time.map(|t| t.into()).unwrap_or(current_time)
                 }
@@ -277,7 +288,7 @@ pub trait Model {
             // dbg!(current_dt_for_train.strftime(None), current_time);
 
             let predict_time = current_time + adjust;
-
+            // dbg!(start_time, current_time, current_dt_for_train, predict_time);
             let (start_idx, end_idx, cut_off_end_idx, predict_idx) = find_idx(
                 &df[opt.time],
                 start_time,
@@ -289,10 +300,10 @@ pub trait Model {
             last_start_idx = start_idx;
             let current_train_df = df.slice(start_idx as i64, cut_off_end_idx - start_idx);
 
-            self.fit_useful(&current_train_df, y, opt.useful)?;
+            self.fit_useful(&current_train_df, y, "useful")?;
             if init_flag && opt.fit_train {
                 init_flag = false;
-                let start_df = df.slice(0, end_idx).select(&features)?;
+                let start_df = df.slice(0, end_idx).select(features.iter().cloned())?;
                 let predict = self.predict(&start_df)?;
                 assert_eq!(end_idx, predict.len());
                 out[0..end_idx]
@@ -302,13 +313,11 @@ pub trait Model {
             }
             let df_to_predict = df
                 .slice(end_idx as i64, predict_idx - end_idx)
-                .select(&features)?;
+                .select(features.iter().cloned())?;
             if opt.verbose {
                 let last_train_time: DateTime = current_train_df[opt.time]
                     .get(current_train_df.height() - 1)
                     .unwrap()
-                    .cast(&DataType::Datetime(TimeUnit::Nanoseconds, None))
-                    .try_extract::<i64>()?
                     .into();
                 println!(
                     "train_time: {} -> {}, last_train_time: {:?}, predict_until: {:?}",
@@ -333,6 +342,6 @@ pub trait Model {
             .into_iter()
             .map(|v| if v.is_nan() { None } else { Some(v) })
             .collect_trusted();
-        Ok(ca.into_series().with_name(self.name()))
+        Ok(ca.into_series().with_name(self.name().into()))
     }
 }
