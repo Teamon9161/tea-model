@@ -80,10 +80,10 @@ impl Model for LinearModel {
         self.reset();
         let unfitted_model = self.as_unfitted();
         let features = Self::get_features(df, y);
-        let y = df[y].f64_array()?;
+        let y = df[y].as_materialized_series().f64_array()?;
         let vec_x = features
             .into_iter()
-            .map(|s| df[s].f64_array().unwrap())
+            .map(|s| df[s].as_materialized_series().f64_array().unwrap())
             .collect::<Vec<_>>();
         let x_view: Vec<_> = vec_x.iter().map(|a| a.view()).collect();
         let x = ndarray::stack(ndarray::Axis(1), &x_view)?;
@@ -98,10 +98,10 @@ impl Model for LinearModel {
         let vec_x = df
             .get_columns()
             .iter()
-            .map(|s| s.f64_array().unwrap())
+            .map(|s| s.as_materialized_series().f64_array().unwrap())
             .collect::<Vec<_>>();
         let x_view: Vec<_> = vec_x.iter().map(|a| a.view()).collect();
-        let x = ndarray::stack(ndarray::Axis(1), &x_view)?;
+        let x = ndarray::stack(ndarray::Axis(1), &x_view).unwrap();
         let predict = self.as_fitted().predict(&x);
         Ok(Float64Chunked::from_vec(self.name().into(), predict.into_raw_vec()).into_series())
     }
