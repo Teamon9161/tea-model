@@ -176,13 +176,13 @@ impl Model for LgbmModel {
     #[inline]
     fn fit(&mut self, df: &DataFrame, y: &str) -> Result<()> {
         let features = Self::get_features(df, y);
-        let y = df[y].f32_vec();
+        let y = df[y].as_materialized_series().f32_vec()?;
         let vec_x = features
             .into_iter()
-            .map(|s| df[s].f64_vec().unwrap())
+            .map(|s| df[s].as_materialized_series().f64_array().unwrap())
             .collect::<Vec<_>>();
         let x_view: Vec<_> = vec_x.iter().map(|a| a.view()).collect();
-        let x = ndarray::stack(ndarray::Axis(1), &x_view)?;
+        let x = ndarray::stack(ndarray::Axis(1), &x_view).unwrap();
         let layout = if x.is_standard_layout() {
             MatLayouts::RowMajor
         } else {
@@ -201,10 +201,10 @@ impl Model for LgbmModel {
         let vec_x = df
             .get_columns()
             .iter()
-            .map(|s| s.f64_array().unwrap())
+            .map(|s| s.as_materialized_series().f64_array().unwrap())
             .collect::<Vec<_>>();
         let x_view: Vec<_> = vec_x.iter().map(|a| a.view()).collect();
-        let x = ndarray::stack(ndarray::Axis(1), &x_view)?;
+        let x = ndarray::stack(ndarray::Axis(1), &x_view).unwrap();
         let layout = if x.is_standard_layout() {
             MatLayouts::RowMajor
         } else {
