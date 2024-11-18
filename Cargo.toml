@@ -6,19 +6,20 @@ edition = "2021"
 [features]
 default = []
 
-blas = ["linfa/intel-mkl-static"]
+
 # linear model
 linear = ["linfa", "linfa-linear"]
 linear-blas = ["blas", "linear", "linfa-linear/blas"]
+blas = ["linfa/intel-mkl-static"]
 
 # lightgbm
 lgbm = ["dep:lgbm"]
 
 
 [dependencies]
-polars = { version = "0.43" }
-ndarray = { version = ">=0.15, <0.16" }
-tea-time = { version = ">=0.3, <0.5", features = ["polars"] }
+polars = { version = "0.44" }
+ndarray = { version = ">=0.15, <0.16", default-features = false }
+tea-time = { version = ">=0.4.5", features = ["polars"] }
 anyhow = "1.0"
 chrono = "0.4"
 linfa = { version = "0.7", optional = true }

@@ -215,7 +215,7 @@ pub trait Model {
     fn train_preprocess(df: &DataFrame, useful: &str) -> Result<DataFrame> {
         if let Ok(useful_se) = df.column(useful) {
             let useful_ca = useful_se.bool()?;
-            Ok(df.filter(&useful_ca)?)
+            Ok(df.filter(useful_ca)?)
         } else {
             Ok(df.clone())
         }
@@ -278,7 +278,7 @@ pub trait Model {
                     let se = unique_time_series.as_ref().unwrap().datetime().unwrap();
                     let ca = se.filter(&se.lt_eq(current_time.into_i64()))?;
                     ensure!(
-                        ca.len() >= cut_off + 1,
+                        ca.len() > cut_off,
                         "cut off num should be less than the length of the time series"
                     );
                     let time = ca.get(ca.len() - cut_off - 1);
@@ -290,7 +290,7 @@ pub trait Model {
             let predict_time = current_time + adjust;
             // dbg!(start_time, current_time, current_dt_for_train, predict_time);
             let (start_idx, end_idx, cut_off_end_idx, predict_idx) = find_idx(
-                &df[opt.time],
+                df[opt.time].as_materialized_series(),
                 start_time,
                 current_time,
                 current_dt_for_train,

@@ -176,10 +176,10 @@ impl Model for LgbmModel {
     #[inline]
     fn fit(&mut self, df: &DataFrame, y: &str) -> Result<()> {
         let features = Self::get_features(df, y);
-        let y = df[y].f32_array()?.into_raw_vec();
+        let y = df[y].f32_vec();
         let vec_x = features
             .into_iter()
-            .map(|s| df[s].f64_array().unwrap())
+            .map(|s| df[s].f64_vec().unwrap())
             .collect::<Vec<_>>();
         let x_view: Vec<_> = vec_x.iter().map(|a| a.view()).collect();
         let x = ndarray::stack(ndarray::Axis(1), &x_view)?;
